@@ -11,7 +11,7 @@ use std::{
     io,
     fs,
     env, 
-    process::Command,
+    process::{Command, exit},
     path::Path,
 };
 
@@ -64,7 +64,19 @@ fn main() -> Result<(), io::Error> {
         to_replace.push('/');
         
         if Path::new(&current_file).is_dir() {
-            file_contents = current_file.to_owned().replace(&to_replace, "");
+            let mut to_replace_temp = current_file.clone();
+            
+            to_replace_temp.push('/');
+            
+            let selected_dir: Vec<String> = fs::read_dir(&current_file).unwrap().map(|entry| {
+                format!("{}\n", entry.unwrap()
+                        .path()
+                        .to_str()
+                        .unwrap()
+                        .replace(&to_replace_temp[..], ""))
+            }).collect();
+            
+            file_contents = selected_dir.join("");
         } else {
             file_contents = fs::read_to_string(&dir_contents[selected_index as usize]).unwrap();
         }
@@ -110,6 +122,21 @@ fn main() -> Result<(), io::Error> {
                     Key::Down => {
                         selected_index = if selected_index == dir_contents_length as u16 - 1 { selected_index } else { selected_index + 1 };
                     }
+                    
+                    Key::Left => {
+                        let mut tmp = String::from(current_dir);
+                        while tmp.as_bytes()[tmp.len() - 1] as char != '/' { tmp.pop(); }
+                        env::set_current_dir(tmp).unwrap();
+                    }
+                    
+                    Key::Char('\n') => {
+                        if Path::new(&current_file[..]).is_dir() {
+                            std::env::set_current_dir(&current_file[..]).unwrap();
+                            selected_index = 0;
+                        }
+                    }
+                    
+                    Key::Char('q') => exit(0),
                     
                     _ => {}
                 }
