@@ -13,6 +13,7 @@ use std::{
     env, 
     process::{Command, exit},
     path::Path,
+    fs::File,
 };
 
 use termion::{
@@ -46,13 +47,14 @@ fn main() -> Result<(), io::Error> {
         
         let dir_contents = fs::read_dir(current_dir).unwrap();
         
-        let dir_contents: Vec<String> = dir_contents.map(|key| {
+        let mut dir_contents: Vec<String> = dir_contents.map(|key| {
             format!("{}", key.unwrap()
                     .path()
                     .to_str()
                     .unwrap()
             )
         }).collect();
+        dir_contents.sort();
         
         let dir_contents_length = dir_contents.len();
         
@@ -60,25 +62,69 @@ fn main() -> Result<(), io::Error> {
         
         let file_contents: String;
         
+        let file_details: String;
+        
+        
         let mut to_replace = current_dir.to_owned();
         to_replace.push('/');
         
-        if Path::new(&current_file).is_dir() {
+        let file_as_path = Path::new(&current_file);
+        if file_as_path.is_dir() {
+            let metadata = file_as_path.metadata().unwrap();
+            
+            file_details = format!(
+"Is directory: true
+Read-only: {}
+Time since modification: {:?}
+Time since accessed: {:?}",
+                metadata.permissions().readonly(), 
+                metadata.modified().unwrap().elapsed().unwrap(),
+                metadata.accessed().unwrap().elapsed().unwrap()
+            );
             let mut to_replace_temp = current_file.clone();
             
             to_replace_temp.push('/');
             
-            let selected_dir: Vec<String> = fs::read_dir(&current_file).unwrap().map(|entry| {
-                format!("{}\n", entry.unwrap()
-                        .path()
-                        .to_str()
-                        .unwrap()
-                        .replace(&to_replace_temp[..], ""))
-            }).collect();
+            let selected_dir;
             
-            file_contents = selected_dir.join("");
+            if let Err(err) = fs::read_dir(&current_file) {
+                file_contents = err.to_string();
+            } else { 
+                selected_dir = fs::read_dir(&current_file).unwrap();
+                
+                let selected_dir: Vec<String> = selected_dir.map(|entry| {
+                    format!("{}\n", entry.unwrap()
+                            .path()
+                            .to_str()
+                            .unwrap()
+                            .replace(&to_replace_temp[..], ""))
+                }).collect();
+                
+                file_contents = selected_dir.join("");
+            }
         } else {
-            file_contents = fs::read_to_string(&dir_contents[selected_index as usize]).unwrap();
+            let path = &dir_contents[selected_index as usize];
+            let file = File::open(path).unwrap();
+            
+            let metadata = file.metadata().unwrap();
+            file_details = format!(
+"Is directory: {} 
+Read-only: {}
+Time since modification: {:?}
+Time since accessed: {:?}", 
+                metadata.is_dir(), 
+                metadata.permissions().readonly(),
+                metadata.modified().unwrap().elapsed().unwrap(),
+                metadata.accessed().unwrap().elapsed().unwrap()
+            );
+            
+            let test = fs::read_to_string(&dir_contents[selected_index as usize]);
+            
+            if let Err(err) = test {
+                file_contents = err.to_string();
+            } else {
+                file_contents = test.unwrap();
+            }
         }
         
         let dir_contents: Vec<String> = dir_contents.iter().map(|entry| {
@@ -92,24 +138,31 @@ fn main() -> Result<(), io::Error> {
             }).collect();
             
         let dir_contents = List::new(dir_contents).block(Block::default());
-        
+        let file_details = Paragraph::new(Text::from(file_details))
+            .style(Style::default())
+            .block(Block::default()
+            .borders(Borders::ALL)
+            .title("File Details"));
+         
         terminal.draw(|f| {
             let dir_contents_pos = chunks[0].inner(&Margin { horizontal: 0, vertical: 0 });
             let file_contents_pos = chunks[1].inner(&Margin { horizontal: 0, vertical: 0 });
+            let file_details_pos = chunks[2].inner(&Margin { horizontal: 0, vertical: 0 });
+            
+            let dir_contents = dir_contents
+                .style(Style::default())
+                .block(Block::default()
+                .borders(Borders::ALL)
+                .title(current_dir));
             let file_contents = Paragraph::new(Text::from(file_contents))
                 .style(Style::default())
                 .block(Block::default()
                 .borders(Borders::ALL)
                 .title(&current_file[..]));
                 
-            let dir_contents = dir_contents
-                .style(Style::default())
-                .block(Block::default()
-                .borders(Borders::ALL)
-                .title(current_dir));
-                
-            f.render_widget(file_contents, file_contents_pos);
             f.render_widget(dir_contents, dir_contents_pos);
+            f.render_widget(file_contents, file_contents_pos);
+            f.render_widget(file_details, file_details_pos);
             
             f.set_cursor(dir_contents_pos.x + 1, dir_contents_pos.y + selected_index + 1);
             
@@ -131,8 +184,8 @@ fn main() -> Result<(), io::Error> {
                     
                     Key::Char('\n') => {
                         if Path::new(&current_file[..]).is_dir() {
-                            std::env::set_current_dir(&current_file[..]).unwrap();
                             selected_index = 0;
+                            std::env::set_current_dir(&current_file[..]).unwrap();
                         }
                     }
                     
