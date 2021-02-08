@@ -6,11 +6,16 @@ pub fn read(path: &str) -> Vec<String> {
         return vec![err.to_string()];
     }
 
-    dir_contents.unwrap().map(|key| {
+    let mut result: Vec<String> = dir_contents.unwrap().map(|key| {
         format!("{}", key.unwrap()
                 .path()
                 .to_str()
                 .unwrap()
         )
-    }).collect()
+    }).collect();
+    result.sort();
+    if result.is_empty() {
+        return vec![String::from("No files in directory")];
+    }
+    result
 }

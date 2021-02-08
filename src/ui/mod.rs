@@ -1,25 +1,22 @@
 pub fn help_message() -> String {
     String::from(
 "
-common
+Movement
 
-d: delete selected file
+Left arrow key:
+  Go back a directory
 
-r: rename selected file
+Right arrow key:
+  Go forward a directory
 
+Up arrow key:
+  Go up an element
 
-movement
+Down arrow key:
+  Go down an element
 
-left arrow key: go back a directory
-
-right arrow key: go forward a directory
-
-up arrow key: go up an element
-
-down arrow key: go down an element
-
-enter: go forward a directory
-
+Enter:
+  Go forward a directory
         "
-        )
+    )
 }

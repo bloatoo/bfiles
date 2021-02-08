@@ -9,17 +9,16 @@ use tui::{
 
 use std::{
     io,
-    fs as stdfs,
     env, 
     process::Command,
     path::Path,
-    fs::File,
 };
 
 use termion::{
     raw::IntoRawMode,
     event::Key,
 };
+
 use event::{Event, Events};
 mod event;
 mod ui;
@@ -34,7 +33,6 @@ fn main() -> Result<(), io::Error> {
     let events = Events::new();
     let mut selected_index: u16 = 0;
     let mut help = false;
-    let mut current_is_dir: bool = false;
     terminal.hide_cursor().unwrap();
 
     loop {
@@ -51,24 +49,15 @@ fn main() -> Result<(), io::Error> {
         let current_dir = env::current_dir().unwrap();
         let current_dir = current_dir.to_str().unwrap();
         
-        let mut dir_contents = fs::dir::read(current_dir);
-        
-        dir_contents.sort();
-        let original_dir = dir_contents.clone();
+        let dir_contents = fs::dir::read(current_dir);
         
         let dir_contents_length = dir_contents.len();
         
-        let current_file;
+        let mut current_file = String::new();
         
-        if (&dir_contents).is_empty() {
-            current_file = String::new();
-        } else {
+        if !(&dir_contents).is_empty() {
             current_file = (&dir_contents)[selected_index as usize].clone();
         }
-        
-        let mut file_contents: String = String::new();
-        
-        let file_details: String;
         
         let mut selected_dir_contents: List = List::new(vec![ListItem::new(String::new())])
             .style(Style::default())
@@ -78,34 +67,16 @@ fn main() -> Result<(), io::Error> {
                                     .add_modifier(Modifier::BOLD)
                                     .fg(config::title_color()))));
                 
-        
         let mut to_replace = current_dir.to_owned();
         to_replace.push('/');
         
         let file_as_path = Path::new(&current_file);
 
         if file_as_path.is_dir() {
-            current_is_dir = true;
             
-            let metadata = file_as_path.metadata().unwrap();
-            
-            file_details = format!(
-"Is directory: true
-Read-only: {}
-Time since modification: {:?}s
-Time since accessed: {:?}s",
-                metadata.permissions().readonly(), 
-                metadata.modified().unwrap().elapsed().unwrap().as_secs() as u32,
-                metadata.accessed().unwrap().elapsed().unwrap().as_secs() as u32,
-            );
             let mut to_replace_temp = current_file.clone();
             
             to_replace_temp.push('/');
-            
-            if let Err(err) = stdfs::read_dir(&current_file) {
-                file_contents = err.to_string();
-            } else { 
-                current_is_dir = true;
                 
                 let mut selected_dir_formatted: Vec<String> = fs::dir::read(&current_file).iter().map(|entry| {
                     entry.to_string().replace(&to_replace_temp[..], "")
@@ -137,47 +108,8 @@ Time since accessed: {:?}s",
                     .title(Span::styled(&current_file[..], Style::default()
                                         .add_modifier(Modifier::BOLD)
                                         .fg(config::title_color()))));
-            }
-        } else {
-            let path = if current_file.is_empty() {
-                current_dir
-            } else {
-                &dir_contents[selected_index as usize]
-            };
-            let file;
-
-            if let Err(err) = File::open(path) {
-                file_details = format!("{}", err);
-            } else {
-                file = File::open(path).unwrap();
-                
-                let metadata = file.metadata().unwrap();
-                
-                file_details = format!(
-"Is directory: {} 
-Read-only: {}
-Time since modification: {:?}s
-Time since accessed: {:?}s", 
-                    metadata.is_dir(), 
-                    metadata.permissions().readonly(),
-                    metadata.modified().unwrap().elapsed().unwrap().as_secs() as u32,
-                    metadata.accessed().unwrap().elapsed().unwrap().as_secs() as u32,
-            );
-            }
-            
-            let read_file = if dir_contents.is_empty() { 
-                Ok(String::new()) 
-            } else { 
-                stdfs::read_to_string(&dir_contents[selected_index as usize]) 
-            };
-            
-            if let Err(err) = read_file {
-                file_contents = err.to_string();
-            } else {
-                file_contents = read_file.unwrap();
-            }
         }
-        
+       
         let dir_widget: Vec<ListItem> = dir_contents.iter()
             .map(|entry|{
                 let content = vec![Spans::from(Span::from(format!("{}", entry
@@ -190,7 +122,7 @@ Time since accessed: {:?}s",
                 } else { 
                     item = item.style(Style::default()); 
                 }
-                if &original_dir[selected_index as usize] == entry {
+                if &current_file[..] == entry {
                     item = item.style(Style::default()
                                       .add_modifier(Modifier::BOLD)
                                       .fg(config::selected_file_color()));
@@ -200,7 +132,7 @@ Time since accessed: {:?}s",
             
         let dir_widget = List::new(dir_widget);
 
-        let file_details = Paragraph::new(Text::from(file_details))
+        let file_details = Paragraph::new(Text::from(fs::details(&current_file[..])))
             .style(Style::default())
             .block(Block::default()
             .borders(Borders::ALL)
@@ -221,10 +153,10 @@ Time since accessed: {:?}s",
                                     .add_modifier(Modifier::BOLD)
                                     .fg(config::title_color()))));
                 
-            if current_is_dir {
+            if Path::new(&current_file[..]).is_dir() {
                 f.render_widget(selected_dir_contents, file_contents_pos);
             } else {
-                let file_contents = Paragraph::new(Text::from(file_contents))
+                let file_contents = Paragraph::new(Text::from(fs::file::read(&current_file[..])))
                     .style(Style::default())
                     .block(Block::default()
                     .borders(Borders::ALL)
@@ -263,7 +195,7 @@ Time since accessed: {:?}s",
                 }
                 
                 Key::Down => {
-                    if !original_dir.is_empty() {
+                    if !dir_contents.is_empty() {
                         selected_index = if selected_index == dir_contents_length as u16 - 1 {
                             selected_index 
                         } else { 
