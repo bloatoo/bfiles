@@ -1,6 +1,6 @@
 use tui::{
     widgets::{Block, List, ListItem, Borders, Paragraph},
-    layout::{Layout, Constraint, Direction},
+    layout::{Layout, Constraint, Direction, Margin},
     text::{Span, Spans, Text},
     backend::TermionBackend,
     style::{Modifier, Style},
@@ -20,19 +20,28 @@ use termion::{
 };
 
 use event::{Event, Events};
+
 mod event;
+
 mod ui;
 mod config;
 mod fs;
 
+mod app;
+use app::{App, InputMode};
+
 fn main() -> Result<(), io::Error> {
     Command::new("clear").spawn().unwrap();
+
+    let mut app = App::new();
     let stdout = io::stdout().into_raw_mode()?;
     let backend = TermionBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
+
     let events = Events::new();
     let mut selected_index: u16 = 0;
     let mut help = false;
+
     terminal.hide_cursor().unwrap();
 
     loop {
@@ -114,36 +123,46 @@ fn main() -> Result<(), io::Error> {
             .map(|entry|{
                 let content = vec![Spans::from(Span::from(format!("{}", entry
                                                                   .replace(&to_replace[..], ""))))];
-                let mut item = ListItem::new(content);
+                let item;
+                let mut style = Style::from(Style::default());
+                match app.input_mode {
+                    InputMode::Rename => {
+                        if &current_file[..] == entry {
+                            item = ListItem::new(if !&app.input_string[..].is_empty() { &app.input_string[..] } else { "\n" });
+                            style = style.add_modifier(Modifier::RAPID_BLINK);
+                        } else { item = ListItem::new(content); }
+                    }
+                    InputMode::Normal => {
+                        item = ListItem::new(content);
+                    }
+                }
                     
                 if Path::new(entry).is_dir() { 
-                    item = item.style(Style::default()
-                                    .add_modifier(Modifier::BOLD).fg(config::directory_color())); 
+                    style = Style::default().add_modifier(Modifier::BOLD).fg(config::directory_color());
                 } else { 
-                    item = item.style(Style::default()); 
                 }
                 if &current_file[..] == entry {
-                    item = item.style(Style::default()
+                    style = Style::default()
                                       .add_modifier(Modifier::BOLD)
-                                      .fg(config::selected_file_color()));
+                                      .fg(config::selected_file_color());
                 }
-                item
+                item.style(style)
             }).collect();
             
         let dir_widget = List::new(dir_widget);
 
-        let file_details = Paragraph::new(Text::from(fs::details(&current_file[..])))
+        let file_info = Paragraph::new(Text::from(fs::info(&current_file[..])))
             .style(Style::default())
             .block(Block::default()
             .borders(Borders::ALL)
-            .title(Span::styled("File Details", Style::default()
+            .title(Span::styled("File Information", Style::default()
                                 .add_modifier(Modifier::BOLD)
                                 .fg(config::title_color()))));
                                     
         terminal.draw(|f| {
             let dir_contents_pos = chunks[0];
             let file_contents_pos = chunks[1];
-            let file_details_pos = chunks[2];
+            let file_info_pos = chunks[2];
             
             let dir_widget = dir_widget
                 .style(Style::default())
@@ -153,6 +172,12 @@ fn main() -> Result<(), io::Error> {
                                     .add_modifier(Modifier::BOLD)
                                     .fg(config::title_color()))));
                 
+            match app.input_mode {
+                InputMode::Rename => {
+                    f.set_cursor(chunks[0].x + app.input_string.len() as u16 + 1, chunks[0].y + selected_index + 1);
+                }
+                _ => {}
+            }
             if Path::new(&current_file[..]).is_dir() {
                 f.render_widget(selected_dir_contents, file_contents_pos);
             } else {
@@ -178,9 +203,9 @@ fn main() -> Result<(), io::Error> {
                                                .add_modifier(Modifier::BOLD)
                                                .fg(config::title_color()))));
                     
-                f.render_widget(help_message, file_details_pos);
+                f.render_widget(help_message, file_info_pos);
             } else {
-                f.render_widget(file_details, file_details_pos);
+                f.render_widget(file_info, file_info_pos);
             }
         }).unwrap();
         
@@ -223,23 +248,64 @@ fn main() -> Result<(), io::Error> {
                 }
                 
                 Key::Char('\n') => {
-                    if Path::new(&current_file[..]).is_dir() {
-                        let set_dir = std::env::set_current_dir(&current_file[..]);
-                        
-                        if let Ok(()) = set_dir {
-                            selected_index = 0;
-                            set_dir.unwrap();
-                        } 
+                    match app.input_mode {
+                        InputMode::Normal => {
+                            if Path::new(&current_file[..]).is_dir() {
+                                let set_dir = std::env::set_current_dir(&current_file[..]);
+                             
+                                if let Ok(()) = set_dir {
+                                    selected_index = 0;
+                                    set_dir.unwrap();
+                                } 
+                            }
+                        }
+                        InputMode::Rename => {
+                            app.input_mode = InputMode::Normal;
+                            fs::rename(&current_file[..], &app.input_string[..]);
+                            app.input_string.clear();
+                        }
                     }
                 }
-                
-                Key::Char('q') => {
-                    break;
+
+                Key::Backspace => {
+                    match app.input_mode {
+                        InputMode::Rename => {
+                            app.input_string.pop();
+                        }
+                        _ => {}
+                    }
                 }
-                Key::Char('h') => {
-                    help = if help { false } else { true };
+
+                Key::Esc => {
+                    match app.input_mode {
+                        InputMode::Normal => {}
+                        InputMode::Rename => {
+                            app.input_mode = InputMode::Normal;
+                            app.input_string.clear();
+                        }
+                    }
                 }
-                
+                Key::Char(c) => {
+                    match app.input_mode {
+                        InputMode::Rename => {
+                            app.input_string.push(c);
+                        }
+                        InputMode::Normal => {
+                            match c {
+                                'q' => {
+                                    break;
+                                }
+                                'h' => {
+                                    help = !help;
+                                }
+                                'r' => {
+                                    app.input_mode = InputMode::Rename;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
                 _ => {}
             }
         }

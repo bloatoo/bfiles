@@ -1,11 +1,12 @@
 use std::path::Path;
+use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::fs::MetadataExt;
 
 pub mod dir;
 pub mod file;
 
-pub fn details(path: &str) -> String {
+pub fn info(path: &str) -> String {
     let file = Path::new(path);
     if let Err(err) = file.metadata() {
         return err.to_string();
@@ -33,4 +34,12 @@ Time since accessed: {:?}s",
                 meta.modified().unwrap().elapsed().unwrap().as_secs() as u32,
                 meta.accessed().unwrap().elapsed().unwrap().as_secs() as u32,
     )
+}
+
+pub fn rename(path: &str, new_name: &str) -> String {
+    if let Err(err) = std::fs::rename(&path, new_name) {
+        return err.to_string();
+    }
+    String::from("Success")
+    
 }
