@@ -1,6 +1,7 @@
 pub enum InputMode {
     Normal,
     Rename,
+    Delete,
 }
 pub struct App {
     pub input_mode: InputMode,

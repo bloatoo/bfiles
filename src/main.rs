@@ -1,9 +1,9 @@
 use tui::{
     widgets::{Block, List, ListItem, Borders, Paragraph},
-    layout::{Layout, Constraint, Direction, Margin},
+    layout::{Layout, Constraint, Direction},
     text::{Span, Spans, Text},
     backend::TermionBackend,
-    style::{Modifier, Style},
+    style::{Modifier, Style, Color},
     Terminal,
 };
 
@@ -125,6 +125,14 @@ fn main() -> Result<(), io::Error> {
                                                                   .replace(&to_replace[..], ""))))];
                 let item;
                 let mut style = Style::from(Style::default());
+                if Path::new(entry).is_dir() { 
+                    style = Style::default().add_modifier(Modifier::BOLD).fg(config::directory_color());
+                }
+                if &current_file[..] == entry {
+                    style = Style::default()
+                                      .add_modifier(Modifier::BOLD)
+                                      .fg(config::selected_file_color());
+                }
                 match app.input_mode {
                     InputMode::Rename => {
                         if &current_file[..] == entry {
@@ -135,17 +143,15 @@ fn main() -> Result<(), io::Error> {
                     InputMode::Normal => {
                         item = ListItem::new(content);
                     }
+                    InputMode::Delete => {
+                        if &current_file[..] == entry {
+                            item = ListItem::new(vec![Spans::from(Span::from(format!("{} [ y/n ]", entry
+                                .replace(&to_replace[..], ""))))]);
+                                style = Style::default().add_modifier(Modifier::BOLD).fg(Color::Red);
+                        } else { item = ListItem::new(content) };
+                    }
                 }
                     
-                if Path::new(entry).is_dir() { 
-                    style = Style::default().add_modifier(Modifier::BOLD).fg(config::directory_color());
-                } else { 
-                }
-                if &current_file[..] == entry {
-                    style = Style::default()
-                                      .add_modifier(Modifier::BOLD)
-                                      .fg(config::selected_file_color());
-                }
                 item.style(style)
             }).collect();
             
@@ -261,8 +267,16 @@ fn main() -> Result<(), io::Error> {
                         }
                         InputMode::Rename => {
                             app.input_mode = InputMode::Normal;
-                            fs::rename(&current_file[..], &app.input_string[..]);
+                            fs::rename(&current_file[..], &app.input_string[..]).unwrap();
                             app.input_string.clear();
+                        }
+                        InputMode::Delete => {
+                            match &app.input_string[..] {
+                                _ => {
+                                    app.input_string.clear();
+                                    app.input_mode = InputMode::Normal;
+                                }
+                            }
                         }
                     }
                 }
@@ -279,7 +293,7 @@ fn main() -> Result<(), io::Error> {
                 Key::Esc => {
                     match app.input_mode {
                         InputMode::Normal => {}
-                        InputMode::Rename => {
+                        InputMode::Rename | InputMode::Delete => {
                             app.input_mode = InputMode::Normal;
                             app.input_string.clear();
                         }
@@ -287,8 +301,22 @@ fn main() -> Result<(), io::Error> {
                 }
                 Key::Char(c) => {
                     match app.input_mode {
-                        InputMode::Rename => {
+                        InputMode::Rename  => {
                             app.input_string.push(c);
+                        }
+                        
+                        InputMode::Delete => {
+                            match c {
+                                'y' => {
+                                    fs::delete(&current_file[..]).unwrap();
+                                    app.input_string.clear();
+                                    app.input_mode = InputMode::Normal;
+                                }
+                                _ => {
+                                    app.input_mode = InputMode::Normal;
+                                    app.input_string.clear();
+                                }
+                            }
                         }
                         InputMode::Normal => {
                             match c {
@@ -300,6 +328,9 @@ fn main() -> Result<(), io::Error> {
                                 }
                                 'r' => {
                                     app.input_mode = InputMode::Rename;
+                                }
+                                'd' => {
+                                    app.input_mode = InputMode::Delete;
                                 }
                                 _ => {}
                             }

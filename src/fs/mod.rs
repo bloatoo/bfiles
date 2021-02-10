@@ -1,5 +1,4 @@
 use std::path::Path;
-use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::fs::MetadataExt;
 
@@ -36,10 +35,25 @@ Time since accessed: {:?}s",
     )
 }
 
-pub fn rename(path: &str, new_name: &str) -> String {
+pub fn rename(path: &str, new_name: &str) -> Result<(), std::io::Error> {
     if let Err(err) = std::fs::rename(&path, new_name) {
-        return err.to_string();
+        return Err(err);
     }
-    String::from("Success")
-    
+    Ok(())
+}
+
+pub fn delete(path: &str) -> Result<(), std::io::Error> {
+    match Path::new(&path).is_dir() {
+        true => {
+            if let Err(err) = std::fs::remove_dir_all(&path) {
+                return Err(err);
+            }
+        },
+        false => {
+            if let Err(err) = std::fs::remove_file(&path) {
+                return Err(err);
+            }
+        }
+    }
+    Ok(())
 }

@@ -1,6 +1,15 @@
 pub fn help_message() -> String {
     String::from(
 "
+Common
+
+d:
+  Delete a file
+
+r:
+  Rename a file
+
+
 Movement
 
 Left arrow key:
