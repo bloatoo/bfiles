@@ -9,6 +9,9 @@ d:
 r:
   Rename a file
 
+c:
+  Create a file
+
 
 Movement
 

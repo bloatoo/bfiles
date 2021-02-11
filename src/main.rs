@@ -1,6 +1,6 @@
 use tui::{
     widgets::{Block, List, ListItem, Borders, Paragraph},
-    layout::{Layout, Constraint, Direction},
+    layout::{Layout, Constraint, Direction, Rect},
     text::{Span, Spans, Text},
     backend::TermionBackend,
     style::{Modifier, Style, Color},
@@ -33,7 +33,7 @@ use app::{App, InputMode};
 fn main() -> Result<(), io::Error> {
     Command::new("clear").spawn().unwrap();
 
-    let mut app = App::new();
+    let mut app = App::default();
     let stdout = io::stdout().into_raw_mode()?;
     let backend = TermionBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -140,7 +140,7 @@ fn main() -> Result<(), io::Error> {
                             style = style.add_modifier(Modifier::RAPID_BLINK);
                         } else { item = ListItem::new(content); }
                     }
-                    InputMode::Normal => {
+                    InputMode::Normal | InputMode::Create => {
                         item = ListItem::new(content);
                     }
                     InputMode::Delete => {
@@ -182,6 +182,15 @@ fn main() -> Result<(), io::Error> {
                 InputMode::Rename => {
                     f.set_cursor(chunks[0].x + app.input_string.len() as u16 + 1, chunks[0].y + selected_index + 1);
                 }
+                InputMode::Create => {
+                    f.set_cursor(chunks[0].x + app.input_string.len() as u16 + 1, chunks[0].y + dir_contents.len() as u16 + 1);
+                    let widget = Paragraph::new(Text::from(app.input_string.as_ref()))
+                        .style(Style::default()
+                               .add_modifier(Modifier::BOLD)
+                               .fg(Color::Yellow));
+
+                    f.render_widget(widget, chunks[0].inner(&tui::layout::Margin { horizontal: 1, vertical: dir_contents.len() as u16 + 1}));
+                }
                 _ => {}
             }
             if Path::new(&current_file[..]).is_dir() {
@@ -218,19 +227,30 @@ fn main() -> Result<(), io::Error> {
         if let Event::Input(input) = events.next().unwrap() {
             match input {
                 Key::Up => {
-                    selected_index = if selected_index == 0 {
-                        selected_index
-                    } else {
-                        selected_index - 1
-                    };
+                    match app.input_mode {
+                        InputMode::Create => {}
+                        _ => {
+                            selected_index = if selected_index == 0 {
+                                selected_index
+                            } else {
+                                selected_index - 1
+                            };
+                        }
+                    }
                 }
                 
                 Key::Down => {
                     if !dir_contents.is_empty() {
-                        selected_index = if selected_index == dir_contents_length as u16 - 1 {
-                            selected_index 
-                        } else { 
-                            selected_index + 1 
+                        match app.input_mode {
+                            InputMode::Create => {}
+                            _ => {
+                                selected_index = if selected_index == dir_contents_length as u16 - 1 {
+                                    selected_index 
+                                } else { 
+                                    selected_index + 1 
+                                }
+                            }
+
                         };
                     }
                 }
@@ -278,6 +298,13 @@ fn main() -> Result<(), io::Error> {
                                 }
                             }
                         }
+                        InputMode::Create => {
+                            let file = fs::file::create(&app.input_string[..]);
+                            if let Ok(_) = file {
+                                file.unwrap();
+                            }
+                            app.input_mode = InputMode::Normal;
+                        }
                     }
                 }
 
@@ -293,7 +320,7 @@ fn main() -> Result<(), io::Error> {
                 Key::Esc => {
                     match app.input_mode {
                         InputMode::Normal => {}
-                        InputMode::Rename | InputMode::Delete => {
+                        InputMode::Rename | InputMode::Delete | InputMode::Create => {
                             app.input_mode = InputMode::Normal;
                             app.input_string.clear();
                         }
@@ -301,7 +328,7 @@ fn main() -> Result<(), io::Error> {
                 }
                 Key::Char(c) => {
                     match app.input_mode {
-                        InputMode::Rename  => {
+                        InputMode::Rename | InputMode::Create => {
                             app.input_string.push(c);
                         }
                         
@@ -311,6 +338,9 @@ fn main() -> Result<(), io::Error> {
                                     fs::delete(&current_file[..]).unwrap();
                                     app.input_string.clear();
                                     app.input_mode = InputMode::Normal;
+                                    if selected_index >= dir_contents_length as u16 - 1 {
+                                        selected_index= dir_contents_length as u16 - 2
+                                    }
                                 }
                                 _ => {
                                     app.input_mode = InputMode::Normal;
@@ -331,6 +361,9 @@ fn main() -> Result<(), io::Error> {
                                 }
                                 'd' => {
                                     app.input_mode = InputMode::Delete;
+                                }
+                                'c' => {
+                                    app.input_mode = InputMode::Create;
                                 }
                                 _ => {}
                             }
