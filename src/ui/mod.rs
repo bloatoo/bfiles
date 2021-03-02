@@ -1,6 +1,6 @@
 pub fn help_message() -> String {
     String::from(
-"
+        "
 Common
 
 d:
@@ -29,6 +29,6 @@ Down arrow key:
 
 Enter:
   Go forward a directory
-        "
+        ",
     )
 }
