@@ -10,11 +10,14 @@ pub struct App {
     pub input_mode: InputMode,
     pub input_string: String,
     pub help: bool,
+    config: Config,
     selected_index: u16,
     dir: Vec<String>,
     selected_file: String,
     pub scroll_offset: u16,
 }
+
+use super::config::Config;
 impl App {
     pub fn default() -> App {
         App {
@@ -25,8 +28,14 @@ impl App {
             dir: vec![],
             selected_file: String::new(),
             scroll_offset: 0,
+            config: Config::default(),
         }
     }
+
+    pub fn config(&self) -> &Config {
+        &self.config
+    }
+
     pub fn selected(&self) -> u16 {
         self.selected_index
     }
@@ -42,7 +51,6 @@ impl App {
     }
     
     pub fn move_down(&mut self) {
-
         self.selected_index = match self.selected_index.cmp(&((&self.dir.len() - 1) as u16)) {
             Ordering::Equal => {
                 self.selected_index
@@ -54,6 +62,7 @@ impl App {
             }
         }
     }
+
     pub fn set_selected(&mut self, index: u16) {
         self.selected_index = index;
     }

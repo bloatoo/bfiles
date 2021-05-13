@@ -14,8 +14,6 @@ use termion::{event::Key, raw::IntoRawMode};
 use event::{Event, Events};
 
 mod event;
-
-mod config;
 mod fs;
 mod ui;
 
@@ -64,7 +62,7 @@ fn main() -> Result<(), io::Error> {
                     &app.current_file()[..],
                     Style::default()
                         .add_modifier(Modifier::BOLD)
-                        .fg(config::title_color()),
+                        .fg(app.config().title_color),
                 )),
             );
 
@@ -92,7 +90,7 @@ fn main() -> Result<(), io::Error> {
                         item = item.style(
                             Style::default()
                                 .add_modifier(Modifier::BOLD)
-                                .fg(config::directory_color()),
+                                .fg(app.config().directory_color),
                         );
                     } else {
                         item = item.style(Style::default());
@@ -106,7 +104,7 @@ fn main() -> Result<(), io::Error> {
                     &app.current_file()[..],
                     Style::default()
                         .add_modifier(Modifier::BOLD)
-                        .fg(config::title_color()),
+                        .fg(app.config().title_color),
                 )),
             );
         }
@@ -122,13 +120,13 @@ fn main() -> Result<(), io::Error> {
                 if Path::new(entry).is_dir() {
                     style = Style::default()
                         .add_modifier(Modifier::BOLD)
-                        .fg(config::directory_color());
+                        .fg(app.config().directory_color);
                 }
 
                 if &app.current_file()[..] == entry {
                     style = Style::default()
                         .add_modifier(Modifier::BOLD)
-                        .fg(config::selected_file_color());
+                        .fg(app.config().selected_file_color);
                 }
 
                 match app.input_mode {
@@ -176,7 +174,7 @@ fn main() -> Result<(), io::Error> {
                     "File Information",
                     Style::default()
                         .add_modifier(Modifier::BOLD)
-                        .fg(config::title_color()),
+                        .fg(app.config().title_color),
                 )),
             );
 
@@ -191,7 +189,7 @@ fn main() -> Result<(), io::Error> {
                         current_dir,
                         Style::default()
                             .add_modifier(Modifier::BOLD)
-                            .fg(config::title_color()),
+                            .fg(app.config().title_color),
                     )),
                 );
 
@@ -237,7 +235,7 @@ fn main() -> Result<(), io::Error> {
                                     &app.current_file()[..],
                                     Style::default()
                                         .add_modifier(Modifier::BOLD)
-                                        .fg(config::title_color()),
+                                        .fg(app.config().title_color),
                                 )),
                             ).scroll((app.scroll_offset, 0));
 
@@ -255,7 +253,7 @@ fn main() -> Result<(), io::Error> {
                                 "Help",
                                 Style::default()
                                     .add_modifier(Modifier::BOLD)
-                                    .fg(config::title_color()),
+                                    .fg(app.config().title_color),
                             )),
                     );
 
@@ -325,17 +323,20 @@ fn main() -> Result<(), io::Error> {
                             }
                         }
                     }
+
                     InputMode::Rename => {
                         app.input_mode = InputMode::Normal;
                         fs::rename(&app.current_file()[..], &app.input_string[..]).unwrap();
                         app.input_string.clear();
                     }
+
                     InputMode::Delete => match &app.input_string[..] {
                         _ => {
                             app.input_string.clear();
                             app.input_mode = InputMode::Normal;
                         }
                     },
+
                     InputMode::Create => {
                         let file = fs::file::create(&app.input_string[..]);
                         if let Ok(_) = file {

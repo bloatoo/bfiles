@@ -1,12 +1,17 @@
 use tui::style::Color;
-pub fn title_color() -> Color {
-    Color::Magenta
+
+pub struct Config {
+    pub title_color: Color,
+    pub selected_file_color: Color,
+    pub directory_color: Color
 }
 
-pub fn selected_file_color() -> Color {
-    Color::Green
-}
-
-pub fn directory_color() -> Color {
-    Color::Blue
+impl Config {
+    pub fn default() -> Self {
+        Self {
+            title_color: Color::Magenta,
+            selected_file_color: Color::Green,
+            directory_color: Color::Blue
+        }
+    }
 }
