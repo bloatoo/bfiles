@@ -13,6 +13,7 @@ pub struct App {
     selected_index: u16,
     dir: Vec<String>,
     selected_file: String,
+    pub scroll_offset: u16,
 }
 impl App {
     pub fn default() -> App {
@@ -22,7 +23,8 @@ impl App {
             help: false,
             selected_index: 0,
             dir: vec![],
-            selected_file: String::new()
+            selected_file: String::new(),
+            scroll_offset: 0,
         }
     }
     pub fn selected(&self) -> u16 {
@@ -32,7 +34,10 @@ impl App {
     pub fn move_up(&mut self) {
         self.selected_index = match self.selected_index.cmp(&0) {
             Ordering::Equal => self.selected_index,
-            _ => self.selected_index - 1,
+            _ => {
+                self.scroll_offset = 0;
+                self.selected_index - 1
+            }
         };
     }
     
@@ -40,9 +45,11 @@ impl App {
 
         self.selected_index = match self.selected_index.cmp(&((&self.dir.len() - 1) as u16)) {
             Ordering::Equal => {
-                    self.selected_index
+                self.selected_index
             },
+
             _ => {
+                self.scroll_offset = 0;
                 self.selected_index + 1
             }
         }

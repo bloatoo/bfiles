@@ -68,9 +68,6 @@ fn main() -> Result<(), io::Error> {
                 )),
             );
 
-        let mut to_replace = current_dir.to_owned();
-        to_replace.push('/');
-
         let file_as_path = Path::new(app.current_file());
 
         if file_as_path.is_dir() {
@@ -78,11 +75,7 @@ fn main() -> Result<(), io::Error> {
 
             to_replace_temp.push('/');
 
-            let mut selected_dir_formatted: Vec<String> = fs::dir::read(&app.current_file())
-                .iter()
-                .map(|entry| entry.to_string().replace(&to_replace_temp[..], ""))
-                .collect();
-
+            let mut selected_dir_formatted: Vec<String> = fs::dir::read(&app.current_file());
             selected_dir_formatted.sort();
 
             let selected_dir_list: Vec<ListItem> = selected_dir_formatted
@@ -121,10 +114,7 @@ fn main() -> Result<(), io::Error> {
         let dir_widget: Vec<ListItem> = app.current_dir()
             .iter()
             .map(|entry| {
-                let content = vec![Spans::from(Span::from(format!(
-                    "{}",
-                    entry.replace(&to_replace[..], "")
-                )))];
+                let content = vec![Spans::from(Span::from(entry.to_string()))];
 
                 let item;
                 let mut style = Style::from(Style::default());
@@ -163,7 +153,7 @@ fn main() -> Result<(), io::Error> {
                         if &app.current_file()[..] == entry {
                             item = ListItem::new(vec![Spans::from(Span::from(format!(
                                 "{} [ y/n ]",
-                                entry.replace(&to_replace[..], "")
+                                entry
                             )))]);
 
                             style = Style::default().add_modifier(Modifier::BOLD).fg(Color::Red);
@@ -249,7 +239,7 @@ fn main() -> Result<(), io::Error> {
                                         .add_modifier(Modifier::BOLD)
                                         .fg(config::title_color()),
                                 )),
-                            );
+                            ).scroll((app.scroll_offset, 0));
 
                     f.render_widget(file_contents, file_contents_pos);
                 }
@@ -278,6 +268,13 @@ fn main() -> Result<(), io::Error> {
 
         if let Event::Input(input) = events.next().unwrap() {
             match input {
+                Key::Alt(c) => {
+                    match c {
+                        'j' => app.scroll_offset += 1,
+                        'k' => if app.scroll_offset > 0 { app.scroll_offset -= 1 },
+                        _ => ()
+                    }
+                }
                 Key::Up => match app.input_mode {
                     InputMode::Create => {}
                     _ => {
@@ -381,6 +378,7 @@ fn main() -> Result<(), io::Error> {
                             app.input_string.clear();
                         }
                     },
+
                     InputMode::Normal => match c {
                         'q' => {
                             break;
